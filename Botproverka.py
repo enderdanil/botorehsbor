@@ -3,7 +3,6 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, Application, ContextTypes
 from datetime import datetime, timedelta
 from telegram.error import NetworkError, BadRequest
-import asyncio
 
 # Установите ваш токен и ID чата
 TOKEN = "7573142030:AAGKeiVTfnegdGTOQOEUDjexOq_SNIfwMt4"
@@ -33,12 +32,17 @@ class CSBot:
 
     def start(self):
         logger.info("Starting bot...")
+        # Запускаем задачу для проверки и отправки стартового сообщения
         self.application.job_queue.run_once(self.check_and_send_start_message, when=0)
-        # Добавляем задачу для поддержания активности бота
-        self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
+        # Периодическая задача для поддержания активности бота
+        self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=0)
         self.application.run_polling()
 
-    # Проверка и отправка стартового сообщения с кнопками
+    # Периодическая задача, чтобы поддерживать активность бота
+    async def keep_alive_task(self, context: ContextTypes.DEFAULT_TYPE):
+        logger.debug("Keep-alive task running...")
+
+    # Проверка и отправка стартового сообщения с кнопками (без уведомлений)
     async def check_and_send_start_message(self, context: ContextTypes.DEFAULT_TYPE):
         if not self.start_message_sent:
             start_message_text = "СОЗДАТЬ СБОР НА КС! (Нажать на количество человек. Работает раз в 30 минут для каждого)"
@@ -51,10 +55,16 @@ class CSBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
-                sent_message = await context.bot.send_message(chat_id=CHAT_ID, text=start_message_text, reply_markup=reply_markup)
+                # Сообщение для создания сбора отправляется без оповещений
+                sent_message = await context.bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=start_message_text,
+                    reply_markup=reply_markup,
+                    disable_notification=True  # Без уведомлений для остальных
+                )
                 self.start_message_id = sent_message.message_id
                 self.start_message_sent = True
-                logger.info("Start message sent.")
+                logger.info("Start message sent without notification.")
             except NetworkError as e:
                 logger.warning(f"Network error while sending start message: {e}")
             except BadRequest as e:
@@ -73,7 +83,7 @@ class CSBot:
 
         await self.create_cs_message(update.message.chat_id, num_people, context)
 
-    # Создание сообщения сбора
+    # Создание сообщения сбора (с оповещением)
     async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
         self.user_count = num_people
         self.user_list.clear()
@@ -87,7 +97,13 @@ class CSBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         try:
-            sent_message = await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup, parse_mode="Markdown")
+            # Сообщение самого сбора отправляется с оповещением
+            sent_message = await context.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
             self.cs_message_id = sent_message.message_id
 
             self.job_queue.run_once(self.delete_message, timedelta(minutes=30),
@@ -153,11 +169,6 @@ class CSBot:
             else:
                 logger.warning(f"Error deleting message: {e}")
 
-    # Задача для поддержания активности бота
-    async def keep_alive_task(self, context: ContextTypes.DEFAULT_TYPE):
-        # Просто выполняем незначительное действие для поддержания активности
-        logger.info("Performing keep-alive task.")
-        await asyncio.sleep(0)  # Просто асинхронная пауза, которая не делает ничего, но поддерживает активность
 
 if __name__ == "__main__":
     bot = CSBot(TOKEN)
