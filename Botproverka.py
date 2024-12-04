@@ -25,6 +25,7 @@ class CSBot:
         self.start_message_sent = False  # Проверка на отправку стартового сообщения
         self.user_list = []  # Список пользователей, кто нажал на кнопку
         self.user_count = 0  # Сколько людей нужно для игры
+        self.old_collection_deleted = False  # Переменная, отслеживающая удален ли старый сбор
 
         # Регистрируем обработчики
         self.application.add_handler(CommandHandler("cs", self.cs_command_handler))
@@ -72,7 +73,7 @@ class CSBot:
             return
 
         # Проверка на наличие открытого сбора
-        if self.user_count > 0:
+        if self.user_count > 0 and not self.old_collection_deleted:
             await update.message.reply_text("Вы не можете создать новый сбор пока не закроется предыдущий сбор.")
             return
 
@@ -80,10 +81,19 @@ class CSBot:
 
     # Создание сообщения сбора
     async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
+        # Удаляем предыдущий сбор, если он был удален
+        if self.cs_message_id and self.old_collection_deleted:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=self.cs_message_id)
+                logger.info("Previous CS message deleted because it was removed.")
+            except BadRequest as e:
+                logger.warning(f"Failed to delete previous message: {e}")
+
         self.user_count = num_people
         self.user_list.clear()
+        self.old_collection_deleted = False  # Сбрасываем флаг, так как новый сбор создается
 
-        # Изменение здесь: теперь в начале сообщения будет имя инициатора
+        # Имя инициатора будет всегда отображаться в сообщении
         initiator_text = f"*{initiated_by}*" if initiated_by else "Кто-то"
         message = (f"{initiator_text} собирает стак на КС. Требуется {num_people} человек.\n"
                    f"Кто будет, жмите на кнопку! (Нажимать только если точно будете)\n\n"
@@ -114,7 +124,7 @@ class CSBot:
                 num_people = int(data.split("_")[1])
 
                 # Проверка на наличие открытого сбора
-                if self.user_count > 0:
+                if self.user_count > 0 and not self.old_collection_deleted:
                     await query.answer("Вы не можете создать новый сбор пока не закроется предыдущий сбор.", show_alert=True)
                     return
 
@@ -153,6 +163,7 @@ class CSBot:
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
             self.user_count = 0  # Закрытие сбора
+            self.old_collection_deleted = True  # Отметим, что старый сбор был удален
         except BadRequest as e:
             if "Message to delete not found" in str(e):
                 logger.info("Message already deleted or not found.")
