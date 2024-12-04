@@ -51,16 +51,10 @@ class CSBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
-                # Отправляем сообщение без оповещений
-                sent_message = await context.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=start_message_text,
-                    reply_markup=reply_markup,
-                    disable_notification=True  # Сообщение без оповещений
-                )
+                sent_message = await context.bot.send_message(chat_id=CHAT_ID, text=start_message_text, reply_markup=reply_markup)
                 self.start_message_id = sent_message.message_id
                 self.start_message_sent = True
-                logger.info("Start message sent without notification.")
+                logger.info("Start message sent.")
             except NetworkError as e:
                 logger.warning(f"Network error while sending start message: {e}")
             except BadRequest as e:
