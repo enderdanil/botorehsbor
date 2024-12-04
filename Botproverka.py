@@ -25,7 +25,6 @@ class CSBot:
         self.start_message_sent = False  # Проверка на отправку стартового сообщения
         self.user_list = []  # Список пользователей, кто нажал на кнопку
         self.user_count = 0  # Сколько людей нужно для игры
-        self.old_collection_deleted = False  # Переменная для отслеживания удален ли старый сбор
 
         # Регистрируем обработчики
         self.application.add_handler(CommandHandler("cs", self.cs_command_handler))
@@ -73,44 +72,22 @@ class CSBot:
             return
 
         # Проверка на наличие открытого сбора
-        if not await self.is_old_collection_finished(update.message.chat_id):
+        if self.user_count > 0:
             await update.message.reply_text("Вы не можете создать новый сбор пока не закроется предыдущий сбор.")
             return
 
-        await self.create_cs_message(update.message.chat_id, num_people, context)
-
-    # Проверка на наличие сообщений о сборе
-    async def is_old_collection_finished(self, chat_id):
-        # Проверяем, есть ли сообщение о сборе
+        # Проверяем наличие предыдущего сборного сообщения в чате и удаляем его, если оно существует и закрыто
         if self.cs_message_id:
-            # Получаем сообщение, чтобы проверить статус сбора
-            message = await self.application.bot.get_message(chat_id=chat_id, message_id=self.cs_message_id)
-            
-            if message:
-                # Если сбор еще не закрыт (людей осталось больше 0), возвращаем False
-                if self.user_count > 0:
-                    return False
-                # Если сбор закрыт (людей 0), разрешаем новый сбор
-                elif self.user_count == 0:
-                    return True
-            return True  # Если нет старого сообщения, разрешаем создание нового сбора
-        else:
-            return True  # Если нет сообщения, значит сборы не активны, разрешаем новый
-
-    # Создание сообщения сбора
-    async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
-        # Если старое сообщение было удалено или закрыто (оставшихся людей 0), разрешаем создание нового сбора
-        if self.cs_message_id and self.user_count == 0:
             try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=self.cs_message_id)
-                logger.info("Previous CS message deleted because it was closed or removed.")
+                await update.message.chat.delete_message(self.cs_message_id)
+                logger.info("Previous CS message deleted.")
             except BadRequest as e:
                 logger.warning(f"Failed to delete previous message: {e}")
 
-        # Если старое сообщение удалено, можно создавать новый сбор
-        if self.cs_message_id and self.old_collection_deleted:
-            self.old_collection_deleted = False  # Сбрасываем флаг
+        await self.create_cs_message(update.message.chat_id, num_people, context)
 
+    # Создание сообщения сбора
+    async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
         self.user_count = num_people
         self.user_list.clear()
 
@@ -127,8 +104,6 @@ class CSBot:
             sent_message = await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup, parse_mode="Markdown")
             self.cs_message_id = sent_message.message_id
 
-            self.job_queue.run_once(self.delete_message, timedelta(minutes=30),
-                                    data={"chat_id": chat_id, "message_id": sent_message.message_id})
         except NetworkError as e:
             logger.warning(f"Network error while creating CS message: {e}")
         except BadRequest as e:
@@ -145,9 +120,17 @@ class CSBot:
                 num_people = int(data.split("_")[1])
 
                 # Проверка на наличие открытого сбора
-                if not await self.is_old_collection_finished(query.message.chat_id):
+                if self.user_count > 0:
                     await query.answer("Вы не можете создать новый сбор пока не закроется предыдущий сбор.", show_alert=True)
                     return
+
+                # Проверяем наличие предыдущего сборного сообщения в чате и удаляем его, если оно существует и закрыто
+                if self.cs_message_id:
+                    try:
+                        await update.message.chat.delete_message(self.cs_message_id)
+                        logger.info("Previous CS message deleted.")
+                    except BadRequest as e:
+                        logger.warning(f"Failed to delete previous message: {e}")
 
                 await self.create_cs_message(query.message.chat_id, num_people, context, initiated_by=user)
                 return
@@ -174,18 +157,6 @@ class CSBot:
             logger.warning(f"Network error during button callback: {e}")
         except BadRequest as e:
             logger.warning(f"Bad request during button callback: {e}")
-
-    # Удаление сообщения по таймеру
-    async def delete_message(self, context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
-        try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-            self.user_count = 0  # Закрытие сбора
-            self.old_collection_deleted = True  # Устанавливаем флаг удаления старого сбора
-        except BadRequest as e:
-            if "Message to delete not found" in str(e):
-                logger.info("Message already deleted or not found.")
-            else:
-                logger.warning(f"Error deleting message: {e}")
 
     # Задача для поддержания активности бота
     async def keep_alive_task(self, context: ContextTypes.DEFAULT_TYPE):
