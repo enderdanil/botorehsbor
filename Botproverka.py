@@ -6,7 +6,7 @@ from telegram.error import NetworkError, BadRequest
 import asyncio
 
 # Установите ваш токен и ID чата
-TOKEN = "7573142030:AAFZeOQHq4roTVkw4rVv1MTKv1_3ShdM3l8"
+TOKEN = "7573142030:AAF7ROHOll5b0rHd8QMQz6xwTeGWpd8-8F8"
 CHAT_ID = "-1002317588357"
 
 # Настроим логирование для отладки
@@ -23,10 +23,8 @@ class CSBot:
         self.cs_message_id = None  # ID сообщения для сбора людей
         self.start_message_id = None  # ID стартового сообщения с кнопками
         self.start_message_sent = False  # Проверка на отправку стартового сообщения
-        self.user_cooldowns = {}  # Тайм-ауты для каждого пользователя
         self.user_list = []  # Список пользователей, кто нажал на кнопку
         self.user_count = 0  # Сколько людей нужно для игры
-        self.active_collection = None  # Хранит ID активного сбора
 
         # Регистрируем обработчики
         self.application.add_handler(CommandHandler("cs", self.cs_command_handler))
@@ -35,7 +33,7 @@ class CSBot:
     def start(self):
         logger.info("Starting bot...")
         # Задержка в 1 секунду перед запуском первой задачи
-        self.application.job_queue.run_once(self.check_and_send_start_message, when=datetime.now() + timedelta(seconds=10))
+        self.application.job_queue.run_once(self.check_and_send_start_message, when=datetime.now() + timedelta(seconds=10)) 
         # Добавляем задачу для поддержания активности бота
         self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
         self.application.run_polling()
@@ -64,10 +62,6 @@ class CSBot:
 
     # Функция для команды /cs
     async def cs_command_handler(self, update, context: ContextTypes.DEFAULT_TYPE):
-        if self.active_collection:
-            await update.message.reply_text("Не можно создавать новый сбор, пока текущий не закроется.")
-            return
-
         try:
             num_people = int(context.args[0])
             if num_people < 1 or num_people > 4:
@@ -75,6 +69,11 @@ class CSBot:
                 return
         except (IndexError, ValueError):
             await update.message.reply_text("Пожалуйста, введите число от 1 до 4.")
+            return
+
+        # Проверка на наличие открытого сбора
+        if self.user_count > 0:
+            await update.message.reply_text("Вы не можете создать новый сбор пока не закроется предыдущий сбор.")
             return
 
         await self.create_cs_message(update.message.chat_id, num_people, context)
@@ -93,9 +92,6 @@ class CSBot:
         keyboard = [[InlineKeyboardButton("✅ Я готов!", callback_data="join_game")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # Создаем новый сбор
-        self.active_collection = {"user_count": num_people, "user_list": [], "initiator": initiated_by}
-        
         try:
             sent_message = await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup, parse_mode="Markdown")
             self.cs_message_id = sent_message.message_id
@@ -117,36 +113,32 @@ class CSBot:
             if data.startswith("start_"):
                 num_people = int(data.split("_")[1])
 
-                last_press_time = self.user_cooldowns.get(user)
-                if last_press_time and datetime.now() - last_press_time < timedelta(minutes=30):
-                    await query.answer("Вы можете создавать сбор раз в 30 минут.", show_alert=True)
+                # Проверка на наличие открытого сбора
+                if self.user_count > 0:
+                    await query.answer("Вы не можете создать новый сбор пока не закроется предыдущий сбор.", show_alert=True)
                     return
 
-                self.user_cooldowns[user] = datetime.now()
                 await self.create_cs_message(query.message.chat_id, num_people, context, initiated_by=user)
                 return
 
             if data == "join_game":
-                if user not in self.active_collection["user_list"]:
-                    self.active_collection["user_list"].append(user)
-                    self.active_collection["user_count"] -= 1
+                if user not in self.user_list:
+                    self.user_list.append(user)
+                    self.user_count -= 1
 
-                message = (f"СРОЧНО собираем стак на КС. Осталось {self.active_collection['user_count']} мест.\n"
+                message = (f"СРОЧНО собираем стак на КС. Осталось {self.user_count} мест.\n"
                            f"Кто будет, жмите на кнопку! (Нажимать только если точно будете)\n\n"
-                           f"*Список людей, которые нажимают кнопку:*\n" + "\n".join(self.active_collection["user_list"]))
+                           f"*Список людей, которые нажимают кнопку:*\n" + "\n".join(self.user_list))
 
-                if self.active_collection["user_count"] == 0:
+                if self.user_count == 0:
                     message += "\n\n*...СБОР ЗАКРЫТ...*"
-                    # Сбросить кд для всех пользователей
-                    self.user_cooldowns.clear()
 
                 await context.bot.edit_message_text(chat_id=query.message.chat_id,
                                                     message_id=query.message.message_id,
                                                     text=message,
                                                     parse_mode="Markdown",
                                                     reply_markup=InlineKeyboardMarkup(
-                                                        [[]] if self.active_collection["user_count"] == 0 else [
-                                                            [InlineKeyboardButton("✅ Я готов!", callback_data="join_game")]]))
+                                                        [[]] if self.user_count == 0 else [[InlineKeyboardButton("✅ Я готов!", callback_data="join_game")]]))
         except NetworkError as e:
             logger.warning(f"Network error during button callback: {e}")
         except BadRequest as e:
@@ -160,7 +152,7 @@ class CSBot:
 
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-            self.active_collection = None  # Закрыть сбор
+            self.user_count = 0  # Закрытие сбора
         except BadRequest as e:
             if "Message to delete not found" in str(e):
                 logger.info("Message already deleted or not found.")
