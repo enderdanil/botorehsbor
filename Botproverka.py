@@ -78,8 +78,9 @@ class CSBot:
         self.user_count = num_people
         self.user_list.clear()
 
+        # Изменение здесь: теперь в начале сообщения будет имя инициатора
         initiator_text = f"*{initiated_by}*" if initiated_by else "Кто-то"
-        message = (f"{initiator_text} СРОЧНО собирает стак на КС. Требуется {num_people} человек.\n"
+        message = (f"{initiator_text} собирает стак на КС. Требуется {num_people} человек.\n"
                    f"Кто будет, жмите на кнопку! (Нажимать только если точно будете)\n\n"
                    f"*Список людей, которые нажимают кнопку:*")
 
