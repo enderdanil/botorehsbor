@@ -73,7 +73,7 @@ class CSBot:
             return
 
         # Проверка на наличие открытого сбора
-        if self.user_count > 0 and not self.old_collection_deleted:
+        if self.user_count > 0 or self.cs_message_id is not None:
             await update.message.reply_text("Вы не можете создать новый сбор пока не закроется предыдущий сбор.")
             return
 
@@ -81,7 +81,7 @@ class CSBot:
 
     # Создание сообщения сбора
     async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
-        # Удаляем предыдущий сбор, если он был удален
+        # Если старое сообщение было удалено, разрешаем создание нового сбора
         if self.cs_message_id and self.old_collection_deleted:
             try:
                 await context.bot.delete_message(chat_id=chat_id, message_id=self.cs_message_id)
@@ -124,7 +124,7 @@ class CSBot:
                 num_people = int(data.split("_")[1])
 
                 # Проверка на наличие открытого сбора
-                if self.user_count > 0 and not self.old_collection_deleted:
+                if self.user_count > 0 or self.cs_message_id is not None:
                     await query.answer("Вы не можете создать новый сбор пока не закроется предыдущий сбор.", show_alert=True)
                     return
 
