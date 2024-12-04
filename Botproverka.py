@@ -30,7 +30,7 @@ class CSBot:
 
     def start(self):
         logger.info("Starting bot...")
-        self.application.job_queue.run_once(self.check_and_send_start_message, when=datetime.now() + timedelta(seconds=1))
+        self.application.job_queue.run_once(self.check_and_send_start_message, when=datetime.now() + timedelta(seconds=10))
         # Добавляем задачу для поддержания активности бота
         self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
         self.application.run_polling()
