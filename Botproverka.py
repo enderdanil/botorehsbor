@@ -73,11 +73,29 @@ class CSBot:
             return
 
         # Проверка на наличие открытого сбора
-        if self.cs_message_id and self.user_count > 0:
+        if not await self.is_old_collection_finished(update.message.chat_id):
             await update.message.reply_text("Вы не можете создать новый сбор пока не закроется предыдущий сбор.")
             return
 
         await self.create_cs_message(update.message.chat_id, num_people, context)
+
+    # Проверка на наличие сообщений о сборе
+    async def is_old_collection_finished(self, chat_id):
+        # Проверяем, есть ли сообщение о сборе
+        if self.cs_message_id:
+            # Получаем сообщение, чтобы проверить статус сбора
+            message = await self.application.bot.get_message(chat_id=chat_id, message_id=self.cs_message_id)
+            
+            if message:
+                # Если сбор еще не закрыт (людей осталось больше 0), возвращаем False
+                if self.user_count > 0:
+                    return False
+                # Если сбор закрыт (людей 0), разрешаем новый сбор
+                elif self.user_count == 0:
+                    return True
+            return True  # Если нет старого сообщения, разрешаем создание нового сбора
+        else:
+            return True  # Если нет сообщения, значит сборы не активны, разрешаем новый
 
     # Создание сообщения сбора
     async def create_cs_message(self, chat_id, num_people, context, initiated_by=None):
@@ -127,7 +145,7 @@ class CSBot:
                 num_people = int(data.split("_")[1])
 
                 # Проверка на наличие открытого сбора
-                if self.cs_message_id and self.user_count > 0:
+                if not await self.is_old_collection_finished(query.message.chat_id):
                     await query.answer("Вы не можете создать новый сбор пока не закроется предыдущий сбор.", show_alert=True)
                     return
 
@@ -157,12 +175,8 @@ class CSBot:
         except BadRequest as e:
             logger.warning(f"Bad request during button callback: {e}")
 
-    # Удаление сообщения через 30 минут
-    async def delete_message(self, context: ContextTypes.DEFAULT_TYPE):
-        job_data = context.job.data
-        chat_id = job_data["chat_id"]
-        message_id = job_data["message_id"]
-
+    # Удаление сообщения по таймеру
+    async def delete_message(self, context: ContextTypes.DEFAULT_TYPE, chat_id, message_id):
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
             self.user_count = 0  # Закрытие сбора
