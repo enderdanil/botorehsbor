@@ -3,8 +3,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, Application, ContextTypes
 from datetime import datetime, timedelta
 from telegram.error import NetworkError, BadRequest
-from aiohttp import web
-import os
+import asyncio
 
 # Установите ваш токен и ID чата
 TOKEN = "7573142030:AAGKeiVTfnegdGTOQOEUDjexOq_SNIfwMt4"
@@ -34,24 +33,10 @@ class CSBot:
 
     def start(self):
         logger.info("Starting bot...")
-        self.application.job_queue.run_once(self.clean_up_chat, when=0)  # Удаление сообщений при старте
+        self.application.job_queue.run_once(self.check_and_send_start_message, when=0)
+        # Добавляем задачу для поддержания активности бота
+        self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
         self.application.run_polling()
-
-    # Удаление сообщений бота из чата
-    async def clean_up_chat(self, context: ContextTypes.DEFAULT_TYPE):
-        logger.info("Cleaning up chat...")
-        try:
-            async for message in context.bot.get_chat_history(chat_id=CHAT_ID):
-                if message.from_user and message.from_user.username == "tsbot":  # Замените "tsbot" на ваше имя бота
-                    await message.delete()
-            logger.info("Clean-up completed.")
-        except NetworkError as e:
-            logger.warning(f"Network error during clean-up: {e}")
-        except BadRequest as e:
-            logger.warning(f"Bad request during clean-up: {e}")
-
-        # После очистки отправляем стартовое сообщение
-        await self.check_and_send_start_message(context)
 
     # Проверка и отправка стартового сообщения с кнопками
     async def check_and_send_start_message(self, context: ContextTypes.DEFAULT_TYPE):
@@ -66,12 +51,7 @@ class CSBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
-                sent_message = await context.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=start_message_text,
-                    reply_markup=reply_markup,
-                    disable_notification=True  # Отправляем сообщение без оповещения
-                )
+                sent_message = await context.bot.send_message(chat_id=CHAT_ID, text=start_message_text, reply_markup=reply_markup)
                 self.start_message_id = sent_message.message_id
                 self.start_message_sent = True
                 logger.info("Start message sent.")
@@ -168,4 +148,17 @@ class CSBot:
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
         except BadRequest as e:
-            if "Message to delete not found
+            if "Message to delete not found" in str(e):
+                logger.info("Message already deleted or not found.")
+            else:
+                logger.warning(f"Error deleting message: {e}")
+
+    # Задача для поддержания активности бота
+    async def keep_alive_task(self, context: ContextTypes.DEFAULT_TYPE):
+        # Просто выполняем незначительное действие для поддержания активности
+        logger.info("Performing keep-alive task.")
+        await asyncio.sleep(0)  # Просто асинхронная пауза, которая не делает ничего, но поддерживает активность
+
+if __name__ == "__main__":
+    bot = CSBot(TOKEN)
+    bot.start()
