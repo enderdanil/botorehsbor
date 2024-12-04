@@ -79,7 +79,7 @@ class CSBot:
         # Проверяем наличие предыдущего сборного сообщения в чате и удаляем его, если оно существует и закрыто
         if self.cs_message_id:
             try:
-                await update.message.chat.delete_message(self.cs_message_id)
+                await context.bot.delete_message(chat_id=CHAT_ID, message_id=self.cs_message_id)
                 logger.info("Previous CS message deleted.")
             except BadRequest as e:
                 logger.warning(f"Failed to delete previous message: {e}")
@@ -127,7 +127,7 @@ class CSBot:
                 # Проверяем наличие предыдущего сборного сообщения в чате и удаляем его, если оно существует и закрыто
                 if self.cs_message_id:
                     try:
-                        await update.message.chat.delete_message(self.cs_message_id)
+                        await context.bot.delete_message(chat_id=query.message.chat_id, message_id=self.cs_message_id)
                         logger.info("Previous CS message deleted.")
                     except BadRequest as e:
                         logger.warning(f"Failed to delete previous message: {e}")
