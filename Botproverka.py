@@ -6,7 +6,7 @@ from telegram.error import NetworkError, BadRequest
 import asyncio
 
 # Установите ваш токен и ID чата
-TOKEN = "7573142030:AAF7ROHOll5b0rHd8QMQz6xwTeGWpd8-8F8"
+TOKEN = "7573142030:AAFZeOQHq4roTVkw4rVv1MTKv1_3ShdM3l8"
 CHAT_ID = "-1002317588357"
 
 # Настроим логирование для отладки
