@@ -162,4 +162,4 @@ class CSBot:
 
 if __name__ == "__main__":
     bot = CSBot(TOKEN)
-    bot.start() 
+    bot.start()
