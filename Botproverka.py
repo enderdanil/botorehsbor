@@ -36,8 +36,7 @@ class CSBot:
         self.application.job_queue.run_once(self.check_and_send_start_message, when=0)
         # Добавляем задачу для поддержания активности бота
         self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
-        # Используем run_polling() для обработки обновлений
-        self.application.run_polling(drop_pending_updates=True)
+        self.application.run_polling()
 
     # Проверка и отправка стартового сообщения с кнопками
     async def check_and_send_start_message(self, context: ContextTypes.DEFAULT_TYPE):
@@ -163,4 +162,4 @@ class CSBot:
 
 if __name__ == "__main__":
     bot = CSBot(TOKEN)
-    bot.start()
+    bot.start() 
