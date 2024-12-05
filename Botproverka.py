@@ -8,7 +8,7 @@ import os
 import json
 
 # Установите ваш токен и ID чата
-TOKEN = "7573142030:AAFZeOQHq4roTVkw4rVv1MTKv1_3ShdM3l8"
+TOKEN = "7573142030:AAF7ROHOll5b0rHd8QMQz6xwTeGWpd8-8F8"
 CHAT_ID = "-1002317588357"
 
 # Настроим логирование для отладки
@@ -26,6 +26,7 @@ class CSBot:
         # Инициализация переменных
         self.start_message_id = None  # ID стартового сообщения с кнопками
         self.cs_message_data = None  # Данные активного сбора (ID сообщения, статус, список пользователей)
+        self.user_cooldowns = {}  # Тайм-ауты для каждого пользователя
 
         # Загружаем сохраненные данные
         self.load_data()
@@ -57,14 +58,16 @@ class CSBot:
 
     def start(self):
         logger.info("Starting bot...")
+        # Задержка в 1 секунду перед запуском первой задачи
         self.application.job_queue.run_once(self.check_and_send_start_message, when=datetime.now() + timedelta(seconds=1))
+        # Добавляем задачу для поддержания активности бота
         self.application.job_queue.run_repeating(self.keep_alive_task, interval=30, first=30)
         self.application.run_polling()
 
     async def check_and_send_start_message(self, context: ContextTypes.DEFAULT_TYPE):
         """Проверка и отправка стартового сообщения с кнопками."""
         if not self.start_message_id:
-            start_message_text = "СОЗДАТЬ СБОР НА КС! (Нажать на количество человек)"
+            start_message_text = "СОЗДАТЬ СБОР НА КС! (Нажать на количество человек. Работает раз в 30 минут для каждого)"
             keyboard = [
                 [InlineKeyboardButton("1", callback_data="start_1"),
                  InlineKeyboardButton("2", callback_data="start_2"),
@@ -104,7 +107,7 @@ class CSBot:
 
         keyboard = [
             [InlineKeyboardButton("✅ Я готов!", callback_data="join_game")],
-            [InlineKeyboardButton("Закрыть сбор принудительно", callback_data="close_game")]
+            [InlineKeyboardButton("❌ X", callback_data="close_game")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -128,6 +131,11 @@ class CSBot:
         try:
             if data.startswith("start_"):
                 num_people = int(data.split("_")[1])
+                last_press_time = self.user_cooldowns.get(user)
+                if last_press_time and datetime.now() - last_press_time < timedelta(minutes=30):
+                    await query.answer("Вы можете создавать сбор раз в 30 минут.", show_alert=True)
+                    return
+                self.user_cooldowns[user] = datetime.now()
                 await self.create_cs_message(query.message.chat_id, num_people, context, initiated_by=user)
                 return
 
@@ -158,10 +166,10 @@ class CSBot:
                                                     text=message,
                                                     parse_mode="Markdown",
                                                     reply_markup=InlineKeyboardMarkup(
-                                                        [[InlineKeyboardButton("Закрыть сбор принудительно", callback_data="close_game")]]
+                                                        [[InlineKeyboardButton("❌ X", callback_data="close_game")]]
                                                         if self.cs_message_data["status"] == "closed" else [[
                                                             InlineKeyboardButton("✅ Я готов!", callback_data="join_game"),
-                                                            InlineKeyboardButton("Закрыть сбор принудительно", callback_data="close_game")
+                                                            InlineKeyboardButton("❌ X", callback_data="close_game")
                                                         ]]
                                                     ))
                 self.save_data()
