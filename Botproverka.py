@@ -26,7 +26,6 @@ class CSBot:
         # Инициализация переменных
         self.start_message_id = None  # ID стартового сообщения с кнопками
         self.cs_message_data = None  # Данные активного сбора (ID сообщения, статус, список пользователей)
-        self.user_cooldowns = {}  # Тайм-ауты для каждого пользователя
 
         # Загружаем сохраненные данные
         self.load_data()
@@ -131,11 +130,6 @@ class CSBot:
         try:
             if data.startswith("start_"):
                 num_people = int(data.split("_")[1])
-                last_press_time = self.user_cooldowns.get(user)
-                if last_press_time and datetime.now() - last_press_time < timedelta(minutes=30):
-                    await query.answer("Вы можете создавать сбор раз в 30 минут.", show_alert=True)
-                    return
-                self.user_cooldowns[user] = datetime.now()
                 await self.create_cs_message(query.message.chat_id, num_people, context, initiated_by=user)
                 return
 
@@ -170,8 +164,8 @@ class CSBot:
                                                         if self.cs_message_data["status"] == "closed" else [[
                                                             InlineKeyboardButton("✅ Я готов!", callback_data="join_game"),
                                                             InlineKeyboardButton("❌ X", callback_data="close_game")
-                                                        ]]
-                                                    ))
+                                                        ]])
+                                                    )
                 self.save_data()
 
             if data == "close_game":
