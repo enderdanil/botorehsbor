@@ -1,3 +1,12 @@
+import logging
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, CallbackQueryHandler, Application, ContextTypes
+from datetime import datetime, timedelta
+from telegram.error import NetworkError, BadRequest
+import asyncio
+import os
+import json
+
 # Установите ваш токен и ID чата
 TOKEN = "7573142030:AAFZeOQHq4roTVkw4rVv1MTKv1_3ShdM3l8"
 CHAT_ID = "-1002317588357"
