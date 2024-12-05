@@ -8,7 +8,7 @@ import os
 import json
 
 # Установите ваш токен и ID чата
-TOKEN = "7573142030:AAF7ROHOll5b0rHd8QMQz6xwTeGWpd8-8F8"
+TOKEN = "7936618968:AAH2PIcfjir0a_urLzommIOmG1WCZPvbPMc"
 CHAT_ID = "-1002317588357"
 
 # Настроим логирование для отладки
